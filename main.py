@@ -138,7 +138,8 @@ def main(args, ITE=0):
     make_mask(model)
 
     # Optimizer and Loss
-    optimizer = torch.optim.Adam(model.parameters(), weight_decay=1e-4)
+    # optimizer = torch.optim.Adam(model.parameters(), weight_decay=1e-4)
+    optimizer = torch.optim.SGD(model.parameters(), lr=args.lr, momentum=0.9)
     criterion = nn.CrossEntropyLoss()  # Default was F.nll_loss
 
     # Layer Looper
@@ -156,8 +157,8 @@ def main(args, ITE=0):
     all_loss = np.zeros(args.end_iter, float)
     all_accuracy = np.zeros(args.end_iter, float)
 
-    for _ite in range(args.start_iter, ITERATION):
-        if not _ite == 0:
+    for prune_level in range(args.start_iter, ITERATION):
+        if not prune_level == 0:
             prune_by_percentile(args.prune_percent, resample=resample, reinit=reinit)
             if reinit:
                 model.apply(weight_init)
@@ -186,11 +187,11 @@ def main(args, ITE=0):
             else:
                 original_initialization(mask, initial_state_dict)
             optimizer = torch.optim.Adam(model.parameters(), lr=args.lr, weight_decay=1e-4)
-        print(f"\n--- Pruning Level [{ITE}:{_ite}/{ITERATION}]: ---")
+        print(f"\n--- Pruning Level [{ITE}:{prune_level}/{ITERATION}]: ---")
 
         # Print the table of Nonzeros in each layer
         comp1 = utils.print_nonzeros(model)
-        comp[_ite] = comp1
+        comp[prune_level] = comp1
         pbar = tqdm(range(args.end_iter))
 
         for iter_ in pbar:
@@ -204,7 +205,7 @@ def main(args, ITE=0):
                     best_accuracy = accuracy
                     utils.checkdir(f"{trial_dir}/saves/{args.arch_type}/{args.dataset}/")
                     torch.save(model,
-                               f"{trial_dir}/saves/{args.arch_type}/{args.dataset}/{_ite}_model_{args.prune_type}.pth.tar")
+                               f"{trial_dir}/saves/{args.arch_type}/{args.dataset}/{prune_level}_model_{args.prune_type}.pth.tar")
 
             # Training
             loss = train(model, train_loader, optimizer, criterion)
@@ -217,7 +218,7 @@ def main(args, ITE=0):
                     f'Train Epoch: {iter_}/{args.end_iter} Loss: {loss:.6f} Accuracy: {accuracy:.2f}% Best Accuracy: {best_accuracy:.2f}%')
 
         writer.add_scalar('Accuracy/test', best_accuracy, comp1)
-        bestacc[_ite] = best_accuracy
+        bestacc[prune_level] = best_accuracy
 
         # Plotting Loss (Training), Accuracy (Testing), Iteration Curve NOTE Loss is computed for every iteration
         # while Accuracy is computed only for every {args.valid_freq} iterations. Therefore Accuracy saved is
