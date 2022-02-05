@@ -1,4 +1,5 @@
 #!/bin/bash
+#SBATCH -p mlhiwidlc_gpu-rtx2080
 #SBATCH -q dlc-dsengupt
 #SBATCH --gres=gpu:1
 #SBATCH -o /work/dlclarge1/dsengupt-lth_ws/slurm_logs/open_lth.out # STDOUT  (the folder log has to be created prior to running or this won't work)
