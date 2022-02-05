@@ -45,14 +45,27 @@ def main(args, ITE=0):
 
     # Data Loader
     transform = transforms.Compose([transforms.ToTensor(), transforms.Normalize((0.1307,), (0.3081,))])
+
     if args.dataset == "mnist":
         traindataset = datasets.MNIST('../data', train=True, download=True, transform=transform)
         testdataset = datasets.MNIST('../data', train=False, transform=transform)
         from archs.mnist import AlexNet, LeNet5, fc1, vgg, resnet
 
     elif args.dataset == "cifar10":
-        traindataset = datasets.CIFAR10('../data', train=True, download=True, transform=transform)
-        testdataset = datasets.CIFAR10('../data', train=False, transform=transform)
+        test_transform = transforms.Compose([
+            transforms.Resize((32, 32)),
+            transforms.ToTensor(),
+            transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
+        ])
+        train_transform = transforms.Compose([
+            transforms.RandomCrop(32, padding=4),
+            transforms.RandomHorizontalFlip(),
+            transforms.Resize((32, 32)),
+            transforms.ToTensor(),
+            transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
+        ])
+        traindataset = datasets.CIFAR10('../data', train=True, download=True, transform=train_transform)
+        testdataset = datasets.CIFAR10('../data', train=False, transform=test_transform)
         from archs.cifar10 import AlexNet, LeNet5, fc1, vgg, resnet, densenet, resnet_simsiam
 
     elif args.dataset == "fashionmnist":
@@ -420,7 +433,7 @@ def weight_init(m):
 if __name__ == "__main__":
     # from gooey import Gooey
     # @Gooey
-
+    start = time.time()
     # Arguement Parser
     parser = argparse.ArgumentParser()
     parser.add_argument("--lr", default=1.2e-3, type=float, help="Learning rate")
@@ -449,3 +462,8 @@ if __name__ == "__main__":
     # Looping Entire process
     # for i in range(0, 5):
     main(args, ITE=1)
+
+    end = time.time()
+    hours, rem = divmod(end - start, 3600)
+    minutes, seconds = divmod(rem, 60)
+    print("{:0>2}:{:0>2}:{:05.2f}".format(int(hours), int(minutes), seconds))
