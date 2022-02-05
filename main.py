@@ -1,7 +1,7 @@
 # Importing Libraries
 import argparse
 import copy
-import os
+from os import path
 import sys
 import numpy as np
 from tqdm import tqdm
@@ -19,16 +19,16 @@ import torchvision.utils as vutils
 import seaborn as sns
 import torch.nn.init as init
 import pickle
+import random
+import torch.backends.cudnn as cudnn
+import time
+import warnings
 
 # Custom Libraries
 import utils
 
-
 # supress a warning
 np.seterr(divide='ignore', invalid='ignore')
-
-# Tensorboard initialization
-writer = SummaryWriter()
 
 # Plotting Style
 sns.set_style('darkgrid')
@@ -36,8 +36,22 @@ sns.set_style('darkgrid')
 
 # Main
 def main(args, ITE=0):
+    # seed everything
+    if args.seed is not None:
+        random.seed(args.seed)
+        torch.manual_seed(args.seed)
+        cudnn.deterministic = True
+        warnings.warn('You have chosen to seed training. '
+                      'This will turn on the CUDNN deterministic setting, '
+                      'which can slow down your training considerably! '
+                      'You may see unexpected behavior when restarting '
+                      'from checkpoints.')
 
     print(f"Run Args {args}")
+    # Tensorboard initialization
+    utils.checkdir(args.exp_dir)
+    trial_dir = path.join(args.exp_dir, args.trial)
+    writer = SummaryWriter(log_dir=f"{trial_dir}/tensorboard")
     print(f"Logs stored at {writer.log_dir}")
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -84,11 +98,11 @@ def main(args, ITE=0):
         print("\nWrong Dataset choice \n")
         exit()
 
-    train_loader = torch.utils.data.DataLoader(traindataset, batch_size=args.batch_size, shuffle=True, num_workers=0,
-                                               drop_last=False)
+    train_loader = torch.utils.data.DataLoader(traindataset, batch_size=args.batch_size, shuffle=True,
+                                               num_workers=args.num_workers, drop_last=False)
     # train_loader = cycle(train_loader)
-    test_loader = torch.utils.data.DataLoader(testdataset, batch_size=args.batch_size, shuffle=False, num_workers=0,
-                                              drop_last=True)
+    test_loader = torch.utils.data.DataLoader(testdataset, batch_size=args.batch_size, shuffle=False,
+                                              num_workers=args.num_workers, drop_last=True)
 
     # Importing Network Architecture
     global model
@@ -116,9 +130,9 @@ def main(args, ITE=0):
 
     # Copying and Saving Initial State
     initial_state_dict = copy.deepcopy(model.state_dict())
-    utils.checkdir(f"{os.getcwd()}/saves/{args.arch_type}/{args.dataset}/")
+    utils.checkdir(f"{trial_dir}/saves/{args.arch_type}/{args.dataset}/")
     torch.save(model,
-               f"{os.getcwd()}/saves/{args.arch_type}/{args.dataset}/initial_state_dict_{args.prune_type}.pth.tar")
+               f"{trial_dir}/saves/{args.arch_type}/{args.dataset}/initial_state_dict_{args.prune_type}.pth.tar")
 
     # Making Initial Mask
     make_mask(model)
@@ -188,9 +202,9 @@ def main(args, ITE=0):
                 # Save Weights
                 if accuracy > best_accuracy:
                     best_accuracy = accuracy
-                    utils.checkdir(f"{os.getcwd()}/saves/{args.arch_type}/{args.dataset}/")
+                    utils.checkdir(f"{trial_dir}/saves/{args.arch_type}/{args.dataset}/")
                     torch.save(model,
-                               f"{os.getcwd()}/saves/{args.arch_type}/{args.dataset}/{_ite}_model_{args.prune_type}.pth.tar")
+                               f"{trial_dir}/saves/{args.arch_type}/{args.dataset}/{_ite}_model_{args.prune_type}.pth.tar")
 
             # Training
             loss = train(model, train_loader, optimizer, criterion)
@@ -208,29 +222,29 @@ def main(args, ITE=0):
         # Plotting Loss (Training), Accuracy (Testing), Iteration Curve NOTE Loss is computed for every iteration
         # while Accuracy is computed only for every {args.valid_freq} iterations. Therefore Accuracy saved is
         # constant during the uncomputed iterations. NOTE Normalized the accuracy to [0,100] for ease of plotting.
-        plt.plot(np.arange(1, (args.end_iter) + 1),
+        plt.plot(np.arange(1, args.end_iter + 1),
                  100 * (all_loss - np.min(all_loss)) / np.ptp(all_loss).astype(float), c="blue", label="Loss")
-        plt.plot(np.arange(1, (args.end_iter) + 1), all_accuracy, c="red", label="Accuracy")
+        plt.plot(np.arange(1, args.end_iter + 1), all_accuracy, c="red", label="Accuracy")
         plt.title(f"Loss Vs Accuracy Vs Iterations ({args.dataset},{args.arch_type})")
         plt.xlabel("Iterations")
         plt.ylabel("Loss and Accuracy")
         plt.legend()
         plt.grid(color="gray")
-        utils.checkdir(f"{os.getcwd()}/plots/lt/{args.arch_type}/{args.dataset}/")
+        utils.checkdir(f"{trial_dir}/plots/lt/{args.arch_type}/{args.dataset}/")
         plt.savefig(
-            f"{os.getcwd()}/plots/lt/{args.arch_type}/{args.dataset}/{args.prune_type}_LossVsAccuracy_{comp1}.png",
+            f"{trial_dir}/plots/lt/{args.arch_type}/{args.dataset}/{args.prune_type}_LossVsAccuracy_{comp1}.png",
             dpi=1200)
         plt.close()
 
         # Dump Plot values
-        utils.checkdir(f"{os.getcwd()}/dumps/lt/{args.arch_type}/{args.dataset}/")
-        all_loss.dump(f"{os.getcwd()}/dumps/lt/{args.arch_type}/{args.dataset}/{args.prune_type}_all_loss_{comp1}.dat")
+        utils.checkdir(f"{trial_dir}/dumps/lt/{args.arch_type}/{args.dataset}/")
+        all_loss.dump(f"{trial_dir}/dumps/lt/{args.arch_type}/{args.dataset}/{args.prune_type}_all_loss_{comp1}.dat")
         all_accuracy.dump(
-            f"{os.getcwd()}/dumps/lt/{args.arch_type}/{args.dataset}/{args.prune_type}_all_accuracy_{comp1}.dat")
+            f"{trial_dir}/dumps/lt/{args.arch_type}/{args.dataset}/{args.prune_type}_all_accuracy_{comp1}.dat")
 
         # Dumping mask
-        utils.checkdir(f"{os.getcwd()}/dumps/lt/{args.arch_type}/{args.dataset}/")
-        with open(f"{os.getcwd()}/dumps/lt/{args.arch_type}/{args.dataset}/{args.prune_type}_mask_{comp1}.pkl",
+        utils.checkdir(f"{trial_dir}/dumps/lt/{args.arch_type}/{args.dataset}/")
+        with open(f"{trial_dir}/dumps/lt/{args.arch_type}/{args.dataset}/{args.prune_type}_mask_{comp1}.pkl",
                   'wb') as fp:
             pickle.dump(mask, fp)
 
@@ -240,9 +254,9 @@ def main(args, ITE=0):
         all_accuracy = np.zeros(args.end_iter, float)
 
     # Dumping Values for Plotting
-    utils.checkdir(f"{os.getcwd()}/dumps/lt/{args.arch_type}/{args.dataset}/")
-    comp.dump(f"{os.getcwd()}/dumps/lt/{args.arch_type}/{args.dataset}/{args.prune_type}_compression.dat")
-    bestacc.dump(f"{os.getcwd()}/dumps/lt/{args.arch_type}/{args.dataset}/{args.prune_type}_bestaccuracy.dat")
+    utils.checkdir(f"{trial_dir}/dumps/lt/{args.arch_type}/{args.dataset}/")
+    comp.dump(f"{trial_dir}/dumps/lt/{args.arch_type}/{args.dataset}/{args.prune_type}_compression.dat")
+    bestacc.dump(f"{trial_dir}/dumps/lt/{args.arch_type}/{args.dataset}/{args.prune_type}_bestaccuracy.dat")
 
     # Plotting
     a = np.arange(args.prune_iterations)
@@ -254,8 +268,8 @@ def main(args, ITE=0):
     plt.ylim(0, 100)
     plt.legend()
     plt.grid(color="gray")
-    utils.checkdir(f"{os.getcwd()}/plots/lt/{args.arch_type}/{args.dataset}/")
-    plt.savefig(f"{os.getcwd()}/plots/lt/{args.arch_type}/{args.dataset}/{args.prune_type}_AccuracyVsWeights.png",
+    utils.checkdir(f"{trial_dir}/plots/lt/{args.arch_type}/{args.dataset}/")
+    plt.savefig(f"{trial_dir}/plots/lt/{args.arch_type}/{args.dataset}/{args.prune_type}_AccuracyVsWeights.png",
                 dpi=1200)
     plt.close()
 
@@ -363,11 +377,11 @@ def original_initialization(mask_temp, initial_state_dict):
 
 # Function for Initialization
 def weight_init(m):
-    '''
+    """
     Usage:
         model = Model()
         model.apply(weight_init)
-    '''
+    """
     if isinstance(m, nn.Conv1d):
         init.normal_(m.weight.data)
         if m.bias is not None:
@@ -450,10 +464,14 @@ if __name__ == "__main__":
                         help="fc1 | lenet5 | alexnet | vgg16 | resnet18 | densenet121| simsiam_resnet18")
     parser.add_argument("--prune_percent", default=10, type=int, help="Pruning percent")
     parser.add_argument("--prune_iterations", default=35, type=int, help="Pruning iterations count")
-
+    parser.add_argument('--exp_dir', type=str, default='experiments', help='path to experiment directory')
+    parser.add_argument('--seed', default=None, type=int,
+                        help='seed for initializing training. ')
+    parser.add_argument('--num_workers', type=int, default=0, help='num of workers to use')
+    parser.add_argument('--trial', type=str, default='1', help='trial id')
     args = parser.parse_args()
 
-    os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
+    # os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
     os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu
 
     # FIXME resample
