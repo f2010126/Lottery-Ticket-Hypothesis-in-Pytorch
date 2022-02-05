@@ -23,6 +23,10 @@ import pickle
 # Custom Libraries
 import utils
 
+
+# supress a warning
+np.seterr(divide='ignore', invalid='ignore')
+
 # Tensorboard initialization
 writer = SummaryWriter()
 
@@ -32,6 +36,10 @@ sns.set_style('darkgrid')
 
 # Main
 def main(args, ITE=0):
+
+    print(f"Run Args {args}")
+    print(f"Logs stored at {writer.log_dir}")
+
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     reinit = True if args.prune_type == "reinit" else False
 
