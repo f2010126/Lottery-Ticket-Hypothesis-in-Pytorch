@@ -107,7 +107,7 @@ def main(args, ITE=0):
 
     # Importing Network Architecture
     global model
-    load_model(args.pretrained, args.arch_type)
+    model = load_model(args.pretrained, args.arch_type, model)
 
     # Copying and Saving Initial State
     initial_state_dict = copy.deepcopy(model.state_dict())
@@ -412,30 +412,29 @@ def weight_init(m):
 
 
 # load model from pretrained if needed
-def load_model(pretrained_path, arch_type):
-    global model  # modify the model global var
+def load_model(pretrained_path, arch_type, model_made):
     # fresh model
     if args.arch_type == "fc1":
-        model = fc1.fc1().to(device)
+        model_made = fc1.fc1().to(device)
     elif args.arch_type == "lenet5":
-        model = LeNet5.LeNet5().to(device)
+        model_made = LeNet5.LeNet5().to(device)
     elif args.arch_type == "alexnet":
-        model = AlexNet.AlexNet().to(device)
+        model_made = AlexNet.AlexNet().to(device)
     elif args.arch_type == "vgg16":
-        model = vgg.vgg16().to(device)
+        model_made = vgg.vgg16().to(device)
     elif args.arch_type == "resnet18":
-        model = resnet.resnet18().to(device)
+        model_made = resnet.resnet18().to(device)
     elif args.arch_type == "densenet121":
-        model = densenet.densenet121().to(device)
+        model_made = densenet.densenet121().to(device)
     elif args.arch_type == "simsiam_resnet18":
-        model = resnet_simsiam.ResNet18().to(device)
+        model_made = resnet_simsiam.ResNet18().to(device)
         # If you want to add extra model paste here
     else:
         print("\nWrong Model choice\n")
         exit()
 
     # Weight Initialization
-    model.apply(weight_init)
+    model_made.apply(weight_init)
 
     # if needed load the pretrained weights
     if pretrained_path:
@@ -452,8 +451,10 @@ def load_model(pretrained_path, arch_type):
                     new_key = old_key.replace('backbone.', '')
                     new_state_dict[new_key] = value
             # SimSiam has no weights for final FC as per structure. So those get inited randomly as above.
-            msg = model.load_state_dict(copy.deepcopy(new_state_dict), strict=False)
+            msg = model_made.load_state_dict(copy.deepcopy(new_state_dict), strict=False)
             assert set(msg.missing_keys) == {"fc.weight", "fc.bias"}
+
+    return model_made
 
 
 if __name__ == "__main__":
@@ -485,7 +486,7 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    # os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
+    os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
     os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu
 
     # FIXME resample
