@@ -124,8 +124,8 @@ def main(args, ITE=0):
     criterion = nn.CrossEntropyLoss()  # Default was F.nll_loss
 
     # Layer Looper
-    for name, param in model.named_parameters():
-        print(name, param.size())
+    # for name, param in model.named_parameters():
+    #     print(name, param.size())
 
     # Pruning
     # NOTE First Pruning Iteration is of No Compression
@@ -143,21 +143,6 @@ def main(args, ITE=0):
             prune_by_percentile(args.prune_percent, resample=resample, reinit=reinit)
             if reinit:
                 model.apply(weight_init)
-                # if args.arch_type == "fc1":
-                #    model = fc1.fc1().to(device)
-                # elif args.arch_type == "lenet5":
-                #    model = LeNet5.LeNet5().to(device)
-                # elif args.arch_type == "alexnet":
-                #    model = AlexNet.AlexNet().to(device)
-                # elif args.arch_type == "vgg16":
-                #    model = vgg.vgg16().to(device)  
-                # elif args.arch_type == "resnet18":
-                #    model = resnet.resnet18().to(device)   
-                # elif args.arch_type == "densenet121":
-                #    model = densenet.densenet121().to(device)   
-                # else:
-                #    print("\nWrong Model choice\n")
-                #    exit()
                 step = 0
                 for name, param in model.named_parameters():
                     if 'weight' in name:
@@ -188,7 +173,7 @@ def main(args, ITE=0):
                     torch.save(model,
                                f"{trial_dir}/saves/{args.arch_type}/{args.dataset}/{prune_level}_model_{args.prune_type}.pth.tar")
 
-            # Training
+                    # Training
             loss = train(model, train_loader, optimizer, criterion)
             all_loss[iter_] = loss
             all_accuracy[iter_] = accuracy
@@ -429,6 +414,7 @@ def weight_init(m):
 # load model from pretrained if needed
 def load_model(pretrained_path, arch_type):
     global model  # modify the model global var
+    # fresh model
     if args.arch_type == "fc1":
         model = fc1.fc1().to(device)
     elif args.arch_type == "lenet5":
@@ -451,6 +437,24 @@ def load_model(pretrained_path, arch_type):
     # Weight Initialization
     model.apply(weight_init)
 
+    # if needed load the pretrained weights
+    if pretrained_path:
+        if os.path.isfile(pretrained_path):
+            print("=> creating from pretrained model '{}'".format(arch_type))
+            # load check point and change keys
+            print("=> loading checkpoint '{}'".format(pretrained_path))
+            checkpoint = torch.load(pretrained_path, map_location=device.type)
+            state_dict = checkpoint['state_dict']
+            # adjust checkpoint statedict keys.
+            new_state_dict = dict()
+            for old_key, value in state_dict.items():
+                if old_key.startswith('backbone') and 'fc' not in old_key:
+                    new_key = old_key.replace('backbone.', '')
+                    new_state_dict[new_key] = value
+            # SimSiam has no weights for final FC as per structure. So those get inited randomly as above.
+            msg = model.load_state_dict(copy.deepcopy(new_state_dict), strict=False)
+            assert set(msg.missing_keys) == {"fc.weight", "fc.bias"}
+
 
 if __name__ == "__main__":
     # from gooey import Gooey
@@ -461,23 +465,23 @@ if __name__ == "__main__":
     parser.add_argument("--lr", default=1.2e-3, type=float, help="Learning rate")
     parser.add_argument("--batch_size", default=60, type=int)
     parser.add_argument("--start_iter", default=0, type=int)
-    parser.add_argument("--end_iter", default=100, type=int)
+    parser.add_argument("--end_iter", default=40, type=int)
     parser.add_argument("--print_freq", default=1, type=int)
     parser.add_argument("--valid_freq", default=1, type=int)
     parser.add_argument("--resume", action="store_true")
     parser.add_argument("--prune_type", default="lt", type=str, help="lt | reinit")
     parser.add_argument("--gpu", default="0", type=str)
-    parser.add_argument("--dataset", default="mnist", type=str, help="mnist | cifar10 | fashionmnist | cifar100")
-    parser.add_argument("--arch_type", default="fc1", type=str,
+    parser.add_argument("--dataset", default="cifar10", type=str, help="mnist | cifar10 | fashionmnist | cifar100")
+    parser.add_argument("--arch_type", default="simsiam_resnet18", type=str,
                         help="fc1 | lenet5 | alexnet | vgg16 | resnet18 | densenet121| simsiam_resnet18")
-    parser.add_argument("--prune_percent", default=10, type=int, help="Pruning percent")
-    parser.add_argument("--prune_iterations", default=35, type=int, help="Pruning iterations count")
+    parser.add_argument("--prune_percent", default=20, type=int, help="Pruning percent")
+    parser.add_argument("--prune_iterations", default=15, type=int, help="Pruning iterations count")
     parser.add_argument('--exp_dir', type=str, default='experiments', help='path to experiment directory')
     parser.add_argument('--seed', default=None, type=int,
                         help='seed for initializing training. ')
     parser.add_argument('--num_workers', type=int, default=0, help='num of workers to use')
     parser.add_argument('--trial', type=str, default='1', help='trial id')
-    parser.add_argument('--pretrained', default='', type=str, help='path to pretrained checkpoint')
+    parser.add_argument('--pretrained', default=None, type=str, help='path to pretrained checkpoint')
 
     args = parser.parse_args()
 
