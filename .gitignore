@@ -3,3 +3,4 @@
 /plots
 /runs
 /saves
+*/*/__pycache__/*
