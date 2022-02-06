@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH -p mlhiwidlc_gpu-rtx2080
+#SBATCH -p mlhiwi_gpu-rtx2080
 #SBATCH -q dlc-dsengupt
 #SBATCH --mem=6000
 #SBATCH --gres=gpu:1

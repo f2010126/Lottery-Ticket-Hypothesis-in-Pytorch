@@ -1,6 +1,7 @@
 #!/bin/bash
-#SBATCH -p mlhiwidlc_gpu-rtx2080
+#SBATCH -p mlhiwi_gpu-rtx2080
 #SBATCH -q dlc-dsengupt
+#SBATCH --mem=6000
 #SBATCH --gres=gpu:1
 #SBATCH -o /work/dlclarge1/dsengupt-lth_ws/slurm_logs/pretrained_lth_123.out # STDOUT  (the folder log has to be created prior to running or this won't work)
 #SBATCH -e /work/dlclarge1/dsengupt-lth_ws/slurm_logs/pretrained_lth_123.err # STDERR  (the folder log has to be created prior to running or this won't work)
