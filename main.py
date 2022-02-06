@@ -26,12 +26,18 @@ import warnings
 
 # Custom Libraries
 import utils
+from archs.cifar10 import AlexNet, LeNet5, fc1, vgg, resnet, densenet, resnet_simsiam
+from archs.mnist import AlexNet, LeNet5, fc1, vgg, resnet
+from archs.cifar100 import AlexNet, fc1, LeNet5, vgg, resnet
 
 # supress a warning
 np.seterr(divide='ignore', invalid='ignore')
 
 # Plotting Style
 sns.set_style('darkgrid')
+
+# set device
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 # Main
@@ -54,7 +60,6 @@ def main(args, ITE=0):
     writer = SummaryWriter(log_dir=f"{trial_dir}/tensorboard")
     print(f"Logs stored at {writer.log_dir}")
 
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     reinit = True if args.prune_type == "reinit" else False
 
     # Data Loader
@@ -63,7 +68,6 @@ def main(args, ITE=0):
     if args.dataset == "mnist":
         traindataset = datasets.MNIST('../data', train=True, download=True, transform=transform)
         testdataset = datasets.MNIST('../data', train=False, transform=transform)
-        from archs.mnist import AlexNet, LeNet5, fc1, vgg, resnet
 
     elif args.dataset == "cifar10":
         test_transform = transforms.Compose([
@@ -80,17 +84,14 @@ def main(args, ITE=0):
         ])
         traindataset = datasets.CIFAR10('../data', train=True, download=True, transform=train_transform)
         testdataset = datasets.CIFAR10('../data', train=False, transform=test_transform)
-        from archs.cifar10 import AlexNet, LeNet5, fc1, vgg, resnet, densenet, resnet_simsiam
 
     elif args.dataset == "fashionmnist":
         traindataset = datasets.FashionMNIST('../data', train=True, download=True, transform=transform)
         testdataset = datasets.FashionMNIST('../data', train=False, transform=transform)
-        from archs.mnist import AlexNet, LeNet5, fc1, vgg, resnet
 
     elif args.dataset == "cifar100":
         traindataset = datasets.CIFAR100('../data', train=True, download=True, transform=transform)
         testdataset = datasets.CIFAR100('../data', train=False, transform=transform)
-        from archs.cifar100 import AlexNet, fc1, LeNet5, vgg, resnet
 
         # If you want to add extra datasets paste here
 
@@ -106,27 +107,7 @@ def main(args, ITE=0):
 
     # Importing Network Architecture
     global model
-    if args.arch_type == "fc1":
-        model = fc1.fc1().to(device)
-    elif args.arch_type == "lenet5":
-        model = LeNet5.LeNet5().to(device)
-    elif args.arch_type == "alexnet":
-        model = AlexNet.AlexNet().to(device)
-    elif args.arch_type == "vgg16":
-        model = vgg.vgg16().to(device)
-    elif args.arch_type == "resnet18":
-        model = resnet.resnet18().to(device)
-    elif args.arch_type == "densenet121":
-        model = densenet.densenet121().to(device)
-    elif args.arch_type == "simsiam_resnet18":
-        model = resnet_simsiam.ResNet18().to(device)
-        # If you want to add extra model paste here
-    else:
-        print("\nWrong Model choice\n")
-        exit()
-
-    # Weight Initialization
-    model.apply(weight_init)
+    load_model(args.pretrained, args.arch_type)
 
     # Copying and Saving Initial State
     initial_state_dict = copy.deepcopy(model.state_dict())
@@ -445,6 +426,32 @@ def weight_init(m):
                 init.normal_(param.data)
 
 
+# load model from pretrained if needed
+def load_model(pretrained_path, arch_type):
+    global model  # modify the model global var
+    if args.arch_type == "fc1":
+        model = fc1.fc1().to(device)
+    elif args.arch_type == "lenet5":
+        model = LeNet5.LeNet5().to(device)
+    elif args.arch_type == "alexnet":
+        model = AlexNet.AlexNet().to(device)
+    elif args.arch_type == "vgg16":
+        model = vgg.vgg16().to(device)
+    elif args.arch_type == "resnet18":
+        model = resnet.resnet18().to(device)
+    elif args.arch_type == "densenet121":
+        model = densenet.densenet121().to(device)
+    elif args.arch_type == "simsiam_resnet18":
+        model = resnet_simsiam.ResNet18().to(device)
+        # If you want to add extra model paste here
+    else:
+        print("\nWrong Model choice\n")
+        exit()
+
+    # Weight Initialization
+    model.apply(weight_init)
+
+
 if __name__ == "__main__":
     # from gooey import Gooey
     # @Gooey
@@ -470,6 +477,8 @@ if __name__ == "__main__":
                         help='seed for initializing training. ')
     parser.add_argument('--num_workers', type=int, default=0, help='num of workers to use')
     parser.add_argument('--trial', type=str, default='1', help='trial id')
+    parser.add_argument('--pretrained', default='', type=str, help='path to pretrained checkpoint')
+
     args = parser.parse_args()
 
     # os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
